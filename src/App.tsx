@@ -1,20 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { GuestJoin } from "./components/GuestJoin";
 import { VideoRoom } from "./components/VideoRoom";
 import "@livekit/components-styles";
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(null);
-
-  // Auto-join if token exists in URL (Sprint 4 V2-012 Ad-hoc guest link)
-  useEffect(() => {
+  const [token, setToken] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get("token");
-    if (urlToken) {
-      setToken(urlToken);
-    }
-  }, []);
+    return params.get("token");
+  });
 
+  // Fetch a token for a new guest session
   const handleFetchToken = async (
     roomName: string,
     participantName: string,
@@ -25,7 +20,9 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomName, participantName }),
       });
+
       const data = await res.json();
+
       if (data.token) {
         setToken(data.token);
       } else {
