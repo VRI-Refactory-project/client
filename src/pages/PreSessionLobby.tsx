@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, Settings, ShieldCheck, X, Check, Upload } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Settings, ShieldCheck, X, Upload } from 'lucide-react';
 import './PreSessionLobby.css';
 
 interface LobbyProps {
@@ -9,7 +9,6 @@ interface LobbyProps {
 
 export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   
   const [isMicOn, setIsMicOn] = useState(true);
@@ -17,23 +16,23 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
   const [connectionQuality, setConnectionQuality] = useState<'good' | 'bad' | 'checking'>('checking');
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [backgroundEffect, setBackgroundEffect] = useState('none');
   const [customImage, setCustomImage] = useState<string | null>(null);
 
-  // 1. Request Camera
+  // 1. Request Camera ONLY ONCE
   useEffect(() => {
+    let activeStream: MediaStream | null = null;
     const startMedia = async () => {
       try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        setStream(mediaStream);
-        if (videoRef.current) videoRef.current.srcObject = mediaStream;
+        activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setStream(activeStream);
+        if (videoRef.current) videoRef.current.srcObject = activeStream;
       } catch (err) {
         console.error("Failed to get media devices", err);
       }
     };
     startMedia();
-    return () => { stream?.getTracks().forEach(track => track.stop()); };
-  }, [stream]);
+    return () => { if (activeStream) activeStream.getTracks().forEach(track => track.stop()); };
+  }, []); // Empty dependency array
 
   // 2. Toggles
   const toggleVideo = () => {
@@ -61,61 +60,8 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
     if (file) {
       const imageUrl = URL.createObjectURL(file);
       setCustomImage(imageUrl);
-      setBackgroundEffect('custom');
     }
   };
-
-  // 5. THE ACTUAL BLUR PROCESSING LOGIC
-  useEffect(() => {
-    if (!stream || !videoRef.current || !canvasRef.current) return;
-
-    // If 'none' is selected, show the raw video and hide the canvas
-    if (backgroundEffect === 'none') {
-      videoRef.current.style.display = 'block';
-      canvasRef.current.style.display = 'none';
-      return;
-    }
-
-    // If blur/custom is selected, hide the raw video and show the canvas
-    videoRef.current.style.display = 'none';
-    canvasRef.current.style.display = 'block';
-
-    const videoElement = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Note: For a real production app, you would use the @mdaemon/video-effects 
-    // library here to process the video stream. For this preview, we use a simple 
-    // canvas filter to demonstrate that the blur works.
-    
-    const drawVideo = () => {
-      if (videoElement.paused || videoElement.ended) return;
-      
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-      
-      // If 'blur' is selected
-      if (backgroundEffect === 'blur') {
-        ctx.filter = 'blur(15px)'; // Apply the blur here
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      } 
-      // If 'custom' image is selected
-      else if (backgroundEffect === 'custom' && customImage) {
-        const img = new Image();
-        img.src = customImage;
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        };
-      }
-      
-      requestAnimationFrame(drawVideo);
-    };
-
-    drawVideo();
-
-  }, [stream, backgroundEffect, customImage]);
 
   return (
     <div className="lobby-container">
@@ -130,26 +76,17 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
       <main className="lobby-main">
         <div className="lobby-video-section">
           <div className="lobby-video-wrapper">
-            {/* Real Video Feed (Hidden when effect is applied) */}
+            {/* Video is always mounted, we just hide it with CSS */}
             <video 
               ref={videoRef} 
               autoPlay 
               playsInline 
               muted 
-              style={{ display: isVideoOn && backgroundEffect === 'none' ? 'block' : 'none' }}
-            />
-
-            {/* Canvas for Blurred Video */}
-            <canvas 
-              ref={canvasRef} 
-              style={{ 
-                display: isVideoOn && backgroundEffect !== 'none' ? 'block' : 'none', 
-                width: '100%', height: '100%', objectFit: 'cover'
-              }} 
+              style={{ visibility: isVideoOn ? 'visible' : 'hidden' }}
             />
 
             {!isVideoOn && (
-              <div style={{ color: 'white', display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
+              <div style={{ position: 'absolute', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
                 Camera is off
               </div>
             )}
@@ -205,18 +142,17 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
               <p className="modal-hint">Choose how you want to appear on the call.</p>
               
               <div className="effect-options">
-                <button className={`effect-btn ${backgroundEffect === 'none' ? 'active' : ''}`} onClick={() => setBackgroundEffect('none')}>
-                  None {backgroundEffect === 'none' && <Check size={16} />}
+                {/* Note: These buttons are placeholders for now */}
+                <button className="effect-btn active">
+                  None
                 </button>
-                <button className={`effect-btn ${backgroundEffect === 'blur' ? 'active' : ''}`} onClick={() => setBackgroundEffect('blur')}>
-                  Blur Background {backgroundEffect === 'blur' && <Check size={16} />}
+                <button className="effect-btn">
+                  Blur Background (Coming Soon)
                 </button>
                 
-                {/* Custom Image Upload Option - STYLED */}
                 <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                   <p style={{ margin: '0 0 12px', fontWeight: 600, color: '#1b1533' }}>Upload Custom Background</p>
                   
-                  {/* Hidden File Input */}
                   <input 
                     type="file" 
                     id="bg-upload" 
@@ -225,21 +161,10 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
                     style={{ display: 'none' }} 
                   />
 
-                  {/* Custom Styled Button */}
                   <label 
                     htmlFor="bg-upload"
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '12px',
-                      border: '2px dashed #ddd8ec',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      backgroundColor: '#fafafd',
-                      color: '#6b6785',
-                      fontWeight: 600
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', border: '2px dashed #ddd8ec', borderRadius: '8px', cursor: 'pointer', backgroundColor: '#fafafd', color: '#6b6785', fontWeight: 600
                     }}
                   >
                     <Upload size={18} />

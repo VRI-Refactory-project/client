@@ -1,5 +1,6 @@
 .lobby-container {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background-color: #f4f7fb;
   display: flex;
   flex-direction: column;
@@ -11,11 +12,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px 40px;
-  background: #f4f7fb;
-}
-
-.lobby-logo {
-  height: 40px;
+  flex-shrink: 0;
 }
 
 .lobby-user {
@@ -26,40 +23,42 @@
   font-weight: 600;
 }
 
-.lobby-user img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
 .lobby-main {
   flex: 1;
   display: flex;
   padding: 0 40px 40px;
   gap: 40px;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .lobby-video-section {
   flex: 2;
+  display: flex;
+  position: relative;
 }
 
 .lobby-video-wrapper {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 500px;
   background: #000;
   border-radius: 24px;
   overflow: hidden;
   border: 3px solid #382c77;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.lobby-video-wrapper video {
+/* Force video to fill the container exactly */
+.lobby-video-wrapper > video {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1); /* Mirrors the video like a selfie camera */
 }
 
 .lobby-controls {
@@ -72,6 +71,7 @@
   background: #382c77;
   padding: 12px 24px;
   border-radius: 40px;
+  z-index: 10;
 }
 
 .control-btn {
@@ -123,12 +123,6 @@
   align-items: center;
   gap: 16px;
   margin-bottom: 40px;
-}
-
-.profile-avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
 }
 
 .lobby-profile h3 {
@@ -278,42 +272,3 @@
   background: #f3f0ff;
   color: #382c77;
 }
-
-.lobby-container {
-  height: 100vh; /* Changed to 100vh */
-  overflow: hidden; /* ADDED: Stops the page from scrolling */
-  background-color: #f4f7fb;
-  display: flex;
-  flex-direction: column;
-  font-family: 'Manrope', -apple-system, sans-serif;
-}
-
-/* ... (KEEP ALL YOUR EXISTING CSS DOWN TO .lobby-main) ... */
-
-.lobby-main {
-  flex: 1;
-  display: flex;
-  padding: 0 40px 40px;
-  gap: 40px;
-  overflow: hidden; /* ADDED: Keeps the video contained */
-  min-height: 0; /* Important for flex children */
-}
-
-.lobby-video-section {
-  flex: 2;
-  display: flex; /* ADDED: Helps contain the video */
-  flex-direction: column;
-}
-
-.lobby-video-wrapper {
-  position: relative;
-  width: 100%;
-  height: 100%; /* Changed to 100% to fill the flex container */
-  min-height: 0; /* Important for flex children */
-  background: #000;
-  border-radius: 24px;
-  overflow: hidden;
-  border: 3px solid #382c77;
-}
-
-/* ... (KEEP THE REST OF YOUR EXISTING CSS AS IT IS) ... */
