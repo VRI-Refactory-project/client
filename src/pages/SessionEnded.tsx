@@ -1,5 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Check, Clock, Wallet } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronRight, Check, Clock, Wallet } from 'lucide-react';
 import './SessionEnded.css';
 
 export function SessionEnded() {
@@ -16,22 +16,15 @@ export function SessionEnded() {
       <div className="se-bg-shape se-bg-shape-2"></div>
 
       <div className="se-container">
-        {/* Back Button */}
-        <Link to="/dashboard" className="se-back-btn">
-          <ChevronLeft size={20} />
-          Back
-        </Link>
 
         {/* Main Card */}
         <div className="se-card">
           
-          {/* Checkmark Icon with sparkles */}
+                    {/* Checkmark Icon */}
           <div className="se-icon-wrapper">
-            <span className="se-sparkle se-sparkle-left" />
             <div className="se-check-circle">
               <Check size={40} strokeWidth={3} />
             </div>
-            <span className="se-sparkle se-sparkle-right" />
           </div>
 
           <h1 className="se-title">Session ended</h1>
