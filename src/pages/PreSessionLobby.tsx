@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Video, VideoOff, Settings, ShieldCheck, X, Upload } from 'lucide-react';
+import { createLocalVideoTrack, LocalVideoTrack } from 'livekit-client';
+// Import the Wrapper type directly
+import { BackgroundProcessor, supportsBackgroundProcessors, type BackgroundProcessorWrapper } from '@livekit/track-processors';
 import './PreSessionLobby.css';
 
 interface LobbyProps {
@@ -9,57 +12,89 @@ interface LobbyProps {
 
 export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [connectionQuality, setConnectionQuality] = useState<'good' | 'bad' | 'checking'>('checking');
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [customImage, setCustomImage] = useState<string | null>(null);
+  
+  // Use BackgroundProcessorWrapper instead of ProcessorType
+  const [videoTrack, setVideoTrack] = useState<LocalVideoTrack | null>(null);
+  const [processor, setProcessor] = useState<BackgroundProcessorWrapper | null>(null);
 
-  // 1. Request Camera ONLY ONCE
+  // 1. Initialize LiveKit Track and Processor
   useEffect(() => {
-    let activeStream: MediaStream | null = null;
+    let track: LocalVideoTrack | null = null;
+
     const startMedia = async () => {
       try {
-        activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        setStream(activeStream);
-        if (videoRef.current) videoRef.current.srcObject = activeStream;
+        track = await createLocalVideoTrack({ facingMode: 'user' });
+        setVideoTrack(track);
+        
+        if (videoRef.current) {
+          track.attach(videoRef.current);
+        }
+
+        if (supportsBackgroundProcessors()) {
+          const p = BackgroundProcessor({ mode: 'disabled' });
+          await track.setProcessor(p);
+          setProcessor(p);
+        }
       } catch (err) {
-        console.error("Failed to get media devices", err);
+        console.error("Failed to start video", err);
       }
     };
+
     startMedia();
-    return () => { if (activeStream) activeStream.getTracks().forEach(track => track.stop()); };
-  }, []); // Empty dependency array
+
+    return () => {
+      if (track) track.stop();
+    };
+  }, []);
 
   // 2. Toggles
   const toggleVideo = () => {
-    if (stream) {
-      stream.getVideoTracks().forEach(track => { track.enabled = !isVideoOn; });
+    if (videoTrack) {
+      if (isVideoOn) {
+        videoTrack.mute();
+      } else {
+        videoTrack.unmute();
+      }
       setIsVideoOn(!isVideoOn);
     }
   };
-  const toggleAudio = () => {
-    if (stream) {
-      stream.getAudioTracks().forEach(track => { track.enabled = !isMicOn; });
-      setIsMicOn(!isMicOn);
+
+  const toggleAudio = async () => {
+    setIsMicOn(!isMicOn);
+  };
+
+  // 3. Apply the Background Effect
+  const setEffect = async (effect: 'none' | 'blur' | 'image', imageUrl?: string) => {
+    if (!processor) {
+      alert("Background processor not supported in this browser.");
+      return;
+    }
+
+    try {
+      if (effect === 'none') {
+        await processor.switchTo({ mode: 'disabled' });
+      } else if (effect === 'blur') {
+        await processor.switchTo({ mode: 'background-blur', blurRadius: 10 });
+      } else if (effect === 'image' && imageUrl) {
+        await processor.switchTo({ mode: 'virtual-background', imagePath: imageUrl });
+      }
+    } catch (err) {
+      console.error("Error applying effect", err);
     }
   };
 
-  // 3. Connection Quality (Mocked)
-  useEffect(() => {
-    const timer = setTimeout(() => setConnectionQuality('good'), 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // 4. Handle Custom Image Upload
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const imageUrl = URL.createObjectURL(file);
       setCustomImage(imageUrl);
+      setEffect('image', imageUrl);
     }
   };
 
@@ -67,29 +102,19 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
     <div className="lobby-container">
       <header className="lobby-header">
         <h1 style={{ color: '#382c77', margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>SignConnect</h1>
-        <div className="lobby-user">
-          <span>user@example.com</span>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#ddd' }} />
-        </div>
       </header>
 
       <main className="lobby-main">
         <div className="lobby-video-section">
           <div className="lobby-video-wrapper">
-            {/* Video is always mounted, we just hide it with CSS */}
             <video 
               ref={videoRef} 
               autoPlay 
               playsInline 
               muted 
-              style={{ visibility: isVideoOn ? 'visible' : 'hidden' }}
+              style={{ display: isVideoOn ? 'block' : 'none' }}
             />
-
-            {!isVideoOn && (
-              <div style={{ position: 'absolute', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
-                Camera is off
-              </div>
-            )}
+            {!isVideoOn && <div style={{ color: 'white', position: 'absolute', display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>Camera is off</div>}
             
             <div className="lobby-controls">
               <button onClick={toggleAudio} className={`control-btn ${!isMicOn ? 'off' : ''}`}>
@@ -118,17 +143,11 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
             </div>
           </div>
 
-          <div style={{ marginBottom: '24px', fontWeight: 600 }}>
-            {connectionQuality === 'checking' && <p style={{ color: '#6b6785' }}>Checking connection...</p>}
-            {connectionQuality === 'good' && <p style={{ color: '#10b981' }}>✓ Connection is stable</p>}
-          </div>
-
           <button className="btn-join" onClick={onJoin}>Join Session</button>
           <button className="btn-cancel" onClick={onCancel}><X size={16} /> Cancel</button>
         </div>
       </main>
 
-      {/* Settings Modal */}
       {isSettingsOpen && (
         <div className="modal-backdrop" onClick={() => setIsSettingsOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -139,39 +158,20 @@ export const PreSessionLobby = ({ onJoin, onCancel }: LobbyProps) => {
             
             <div className="modal-body">
               <h3>Background Effects</h3>
-              <p className="modal-hint">Choose how you want to appear on the call.</p>
               
               <div className="effect-options">
-                {/* Note: These buttons are placeholders for now */}
-                <button className="effect-btn active">
+                <button className="effect-btn" onClick={() => setEffect('none')}>
                   None
                 </button>
-                <button className="effect-btn">
-                  Blur Background (Coming Soon)
+                <button className="effect-btn" onClick={() => setEffect('blur')}>
+                  Blur Background
                 </button>
                 
-                <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                  <p style={{ margin: '0 0 12px', fontWeight: 600, color: '#1b1533' }}>Upload Custom Background</p>
-                  
-                  <input 
-                    type="file" 
-                    id="bg-upload" 
-                    accept="image/png, image/jpeg" 
-                    onChange={handleImageUpload} 
-                    style={{ display: 'none' }} 
-                  />
-
-                  <label 
-                    htmlFor="bg-upload"
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', border: '2px dashed #ddd8ec', borderRadius: '8px', cursor: 'pointer', backgroundColor: '#fafafd', color: '#6b6785', fontWeight: 600
-                    }}
-                  >
-                    <Upload size={18} />
-                    {customImage ? 'Image uploaded successfully' : 'Choose an image from your device'}
+                <div style={{ marginTop: '16px' }}>
+                  <input type="file" id="bg-upload" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                  <label htmlFor="bg-upload" style={{ display: 'flex', padding: '12px', border: '2px dashed #ddd8ec', borderRadius: '8px', cursor: 'pointer', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                    <Upload size={18} /> {customImage ? 'Image ready' : 'Upload Custom Image'}
                   </label>
-
-                  {customImage && <p style={{ fontSize: '12px', color: '#10b981', marginTop: '8px', textAlign: 'center' }}>✓ Custom background ready</p>}
                 </div>
               </div>
             </div>
